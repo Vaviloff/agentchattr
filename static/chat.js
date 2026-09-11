@@ -283,6 +283,7 @@ function renderMarkdown(text) {
     text = text.replace(/\x00P(\d+)\x00/g, (_, i) => pathSlots[parseInt(i)]);
     // Parse markdown, then color @mentions, URLs, and file paths in the output
     let html = marked.parse(text);
+    html = sanitizeLinkHrefs(html);
     // Remove wrapping <p> tags for single-line messages to keep them inline
     const trimmed = html.trim();
     if (trimmed.startsWith('<p>') && trimmed.endsWith('</p>') && trimmed.indexOf('<p>', 1) === -1) {
@@ -292,6 +293,24 @@ function renderMarkdown(text) {
     html = linkifyUrls(html);
     html = linkifyPaths(html);
     return html;
+}
+
+function sanitizeLinkHrefs(html) {
+    // marked does not filter link schemes — an agent message like
+    // [click](javascript:alert(1)) would render a live javascript: anchor.
+    // DOMParser round-trip decodes entity tricks (&#58;) before we inspect.
+    try {
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+        for (const a of doc.querySelectorAll('a[href]')) {
+            const raw = (a.getAttribute('href') || '').replace(/[\s\x00-\x20]+/g, '');
+            if (/^(javascript|data|vbscript|blob|file):/i.test(raw)) {
+                a.setAttribute('href', '#');
+            }
+        }
+        return doc.body.innerHTML;
+    } catch (e) {
+        return html;
+    }
 }
 
 function linkifyUrls(html) {
@@ -961,7 +980,7 @@ function appendMessage(msg, options = {}) {
         el.dataset.rawText = msg.text;
         const senderRole = _agentRoles[msg.sender] || '';
         const roleClass = senderRole ? 'bubble-role has-role' : 'bubble-role';
-        const rolePillHtml = !isSelf ? `<button class="${roleClass}" onclick="showBubbleRolePicker(this, '${escapeHtml(msg.sender)}')" title="${senderRole ? escapeHtml(senderRole) : 'Set role'}">${senderRole || 'choose a role'}</button>` : '';
+        const rolePillHtml = !isSelf ? `<button class="${roleClass}" onclick="showBubbleRolePicker(this, '${escapeJsString(msg.sender)}')" title="${senderRole ? escapeHtml(senderRole) : 'Set role'}">${escapeHtml(senderRole) || 'choose a role'}</button>` : '';
         // Inline decision choices (if present)
         let choicesHtml = '';
         const meta = msg.metadata || {};
@@ -971,7 +990,7 @@ function appendMessage(msg, options = {}) {
                 choicesHtml = `<div class="decision-choices"><div class="decision-resolved">You chose: <strong>${escapeHtml(meta.chosen || '')}</strong></div></div>`;
             } else {
                 choicesHtml = '<div class="decision-choices">' + choicesList.map(c =>
-                    `<button class="decision-choice" onclick="resolveDecision(${msg.id}, '${escapeHtml(c).replace(/'/g, "\\'")}')">${escapeHtml(c)}</button>`
+                    `<button class="decision-choice" onclick="resolveDecision(${msg.id}, '${escapeJsString(c)}')">${escapeHtml(c)}</button>`
                 ).join('') + '</div>';
             }
         }
@@ -1837,7 +1856,7 @@ function _deleteCustomRole(role) {
 const _agentRoles = {};  // name → role string
 
 function fetchRoles() {
-    fetch('/api/roles').then(r => r.json()).then(roles => {
+    fetch('/api/roles', { headers: { 'X-Session-Token': SESSION_TOKEN } }).then(r => r.json()).then(roles => {
         Object.assign(_agentRoles, roles);
         for (const name of Object.keys(roles || {})) {
             _syncBubbleRolePills(name);
@@ -3415,9 +3434,20 @@ function styleHashtags(html) {
 function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
-    return div.innerHTML;
+    // div.innerHTML escapes & < > — also escape quotes so callers can
+    // safely interpolate the result into quoted HTML attributes.
+    return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 window.escapeHtml = escapeHtml;
+
+// Escape for interpolation into a single-quoted JS string inside an HTML
+// attribute (onclick="fn('...')"). Backslash-escape quotes BEFORE
+// HTML-escaping: the browser HTML-decodes the attribute value before the
+// JS engine parses it, so &#39; would decode back to a raw quote and
+// terminate the string.
+function escapeJsString(text) {
+    return escapeHtml(String(text).replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
+}
 
 // --- Schedules strip ---
 

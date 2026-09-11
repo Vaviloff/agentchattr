@@ -213,7 +213,7 @@ def _install_security_middleware(token: str, cfg: dict):
             # Static assets, index page, and uploaded images are public.
             # The index page injects the token client-side via same-origin script.
             # Uploads use random filenames and have path-traversal protection.
-            if path == "/" or path.startswith(("/static/", "/uploads/", "/api/roles")):
+            if path == "/" or path.startswith(("/static/", "/uploads/")):
                 return await call_next(request)
 
             # Agent registration/heartbeat: loopback only (no remote agent minting).
@@ -237,8 +237,15 @@ def _install_security_middleware(token: str, cfg: dict):
             # --- Token check ---
             # Allow registered agents to authenticate via Bearer token
             # for /api/messages and /api/send (no browser session needed).
+            # GET /api/roles is also agent-readable; role writes stay
+            # session-token only (human-only, per the UI contract).
+            bearer_ok = (
+                path in ("/api/messages", "/api/send")
+                or path.startswith("/api/rules/")
+                or (path == "/api/roles" and request.method == "GET")
+            )
             auth_header = request.headers.get("authorization", "")
-            if auth_header.lower().startswith("bearer ") and (path in ("/api/messages", "/api/send") or path.startswith("/api/rules/")):
+            if auth_header.lower().startswith("bearer ") and bearer_ok:
                 bearer = auth_header[7:].strip()
                 if _self.registry and _self.registry.resolve_token(bearer):
                     return await call_next(request)
@@ -2696,5 +2703,11 @@ async def serve_upload(filename: str):
     if not filepath.is_relative_to(upload_dir.resolve()):
         return JSONResponse({"error": "invalid path"}, status_code=400)
     if filepath.exists():
-        return FileResponse(filepath)
+        # SVG can carry inline scripts — when served inline it executes in
+        # this app's origin if ever opened directly. Force download for
+        # direct navigation; inline <img> rendering is unaffected.
+        headers = None
+        if filepath.suffix.lower() == ".svg":
+            headers = {"Content-Disposition": f'attachment; filename="{filepath.name}"'}
+        return FileResponse(filepath, headers=headers)
     return JSONResponse({"error": "not found"}, status_code=404)
