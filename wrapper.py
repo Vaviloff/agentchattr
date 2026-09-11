@@ -427,11 +427,12 @@ _IDENTITY_HINT = (
 )
 
 
-def _fetch_role(server_port: int, agent_name: str) -> str:
+def _fetch_role(server_port: int, agent_name: str, token: str = "") -> str:
     """Fetch this agent's role from the server status endpoint."""
     try:
         import urllib.request
-        req = urllib.request.Request(f"http://127.0.0.1:{server_port}/api/roles")
+        headers = {"Authorization": f"Bearer {token}"} if token else {}
+        req = urllib.request.Request(f"http://127.0.0.1:{server_port}/api/roles", headers=headers)
         with urllib.request.urlopen(req, timeout=3) as resp:
             roles = json.loads(resp.read())
         return roles.get(agent_name, "")
@@ -532,15 +533,15 @@ def _queue_watcher(get_identity_fn, inject_fn, *, is_multi_instance: bool = Fals
 
                     # Use current identity (may have changed via rename)
                     current_name, _ = get_identity_fn()
+                    _token = get_token_fn() if get_token_fn else ""
                     # Append role if set — check both current name and base name
-                    role = _fetch_role(server_port, current_name)
+                    role = _fetch_role(server_port, current_name, _token)
                     if not role and current_name != agent_name:
-                        role = _fetch_role(server_port, agent_name)
+                        role = _fetch_role(server_port, agent_name, _token)
                     if role:
                         prompt += f"\n\nROLE: {role}"
 
                     # Smart rules injection: first trigger, epoch change, or periodic refresh
-                    _token = get_token_fn() if get_token_fn else ""
                     rules_data = _fetch_active_rules(server_port, _token)
                     trigger_count += 1
                     if rules_data:

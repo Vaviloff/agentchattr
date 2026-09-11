@@ -91,7 +91,7 @@ window._messageRenderers['session_draft'] = function (el, msg) {
                 <div class="proposal-body session-proposal-desc">This draft needs changes before it can be run or saved.</div>
                 <ul class="session-draft-errors">${errorList}</ul>
                 <div class="proposal-actions">
-                    <button class="proposal-request-changes" onclick="requestDraftChanges('${window.escapeHtml(draftId)}', '${window.escapeHtml(proposedBy)}', ${msg.id})">Request Changes</button>
+                    <button class="proposal-request-changes" onclick="requestDraftChanges('${window.escapeJsString(draftId)}', '${window.escapeJsString(proposedBy)}', ${msg.id})">Request Changes</button>
                     <button class="proposal-dismiss" onclick="dismissDraft(${msg.id})">Dismiss</button>
                 </div>
             </div>`;
@@ -131,7 +131,7 @@ window._messageRenderers['session_draft'] = function (el, msg) {
                 <div class="proposal-actions">
                     <button class="proposal-accept" onclick="runDraft(${msg.id})">Run</button>
                     <button class="proposal-request-changes session-draft-btn-save" onclick="saveDraft(${msg.id}, this)">Save Template</button>
-                    <button class="proposal-request-changes" onclick="requestDraftChanges('${window.escapeHtml(draftId)}', '${window.escapeHtml(proposedBy)}', ${msg.id})">Request Changes</button>
+                    <button class="proposal-request-changes" onclick="requestDraftChanges('${window.escapeJsString(draftId)}', '${window.escapeJsString(proposedBy)}', ${msg.id})">Request Changes</button>
                     <button class="proposal-dismiss" onclick="dismissDraft(${msg.id})">Dismiss</button>
                 </div>
             </div>`;
@@ -389,8 +389,8 @@ function showSessionLauncher() {
     modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
 
     let templateOptions = sessionTemplates.map(t =>
-        `<div class="session-tmpl-card" onclick="showCastPreview('${window.escapeHtml(t.id)}')" title="${window.escapeHtml(t.description || '')}">
-            ${t.is_custom ? `<span class="session-tmpl-delete-wrap"><button class="session-tmpl-delete" onclick="toggleDeleteSessionTemplateConfirm(this, '${window.escapeHtml(t.id)}', event)" title="Delete custom template">Delete</button></span>` : ''}
+        `<div class="session-tmpl-card" onclick="showCastPreview('${window.escapeJsString(t.id)}')" title="${window.escapeHtml(t.description || '')}">
+            ${t.is_custom ? `<span class="session-tmpl-delete-wrap"><button class="session-tmpl-delete" onclick="toggleDeleteSessionTemplateConfirm(this, '${window.escapeJsString(t.id)}', event)" title="Delete custom template">Delete</button></span>` : ''}
             <div class="session-tmpl-name">${window.escapeHtml(t.name)}</div>
             <div class="session-tmpl-desc">${window.escapeHtml(t.description || '')}</div>
             <div class="session-tmpl-roles">${(t.roles || []).map(r => `<span class="session-role-pill">${window.escapeHtml(r)}</span>`).join(' ')}</div>
@@ -475,7 +475,7 @@ function showCastPreview(templateId) {
             <span>${window.escapeHtml(tmpl.name)} -- Cast</span>
         </div>
         <div class="session-cast-list">${roleRows}</div>
-        <button class="session-start-btn" onclick="launchSessionWithCast('${window.escapeHtml(templateId)}')">Start Session</button>
+        <button class="session-start-btn" onclick="launchSessionWithCast('${window.escapeJsString(templateId)}')">Start Session</button>
     `;
 }
 
@@ -802,7 +802,7 @@ function requestDraftChanges(draftId, proposedBy, msgId) {
     inputRow.innerHTML = `
         <textarea class="draft-changes-textarea" rows="2" placeholder="What changes do you want?"></textarea>
         <div class="draft-changes-btns">
-            <button class="session-draft-btn run" onclick="submitDraftChanges('${window.escapeHtml(draftId)}', '${window.escapeHtml(proposedBy)}', ${msgId})">Send</button>
+            <button class="session-draft-btn run" onclick="submitDraftChanges('${window.escapeJsString(draftId)}', '${window.escapeJsString(proposedBy)}', ${msgId})">Send</button>
             <button class="session-draft-btn dismiss" onclick="dismissDraftChanges(this)">Cancel</button>
         </div>
     `;
